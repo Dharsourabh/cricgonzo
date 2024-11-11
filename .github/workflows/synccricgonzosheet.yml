@@ -55,7 +55,7 @@ jobs:
         if: env.changed == 'true'
         run: |
           git config --global user.name "Dharsourabh"
-          git config --global user.email "Dharsourabh@gmail.com"
+          git config --global user.email "dharsourabh@gmail.com"
           
           git add data/
           git commit -m "Automated update of Cricsheet data with new or updated files"
