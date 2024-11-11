@@ -1,0 +1,58 @@
+name: Sync Cricsheet Data
+
+on:
+  # Run the workflow every 6 hours
+  schedule:
+    - cron: '0 */6 * * *'  # Runs at midnight, 6 AM, noon, and 6 PM (UTC)
+
+  # Run the workflow on every push to the main branch (or whatever branch you specify)
+  push:
+    branches:
+      - main  # Update to your branch name if different
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v2
+
+      - name: Download Cricsheet data
+        run: |
+          # Define the data folder and the zip file URL
+          DATA_DIR="data"
+          ZIP_URL="https://cricsheet.org/downloads/all_csv2.zip"  # Update URL as needed
+          ZIP_FILE="all_csv2.zip"
+
+          # Create the data folder if not exists
+          mkdir -p $DATA_DIR
+
+          # Download the zip file to a temporary location
+          curl -L -o $ZIP_FILE $ZIP_URL
+
+          # Check if the zip file is different from the existing one
+          if [ -f "$DATA_DIR/$ZIP_FILE" ]; then
+            # If the zip file exists, compare it with the new one
+            if cmp -s "$ZIP_FILE" "$DATA_DIR/$ZIP_FILE"; then
+              echo "No changes in the zip file. Exiting."
+              exit 0  # Exit if no changes are found
+            else
+              echo "New version of zip file detected."
+              rm -rf $DATA_DIR/*  # Clear old data
+            fi
+          fi
+
+          # Unzip the new data into the data folder
+          unzip -o $ZIP_FILE -d $DATA_DIR
+          rm $ZIP_FILE  # Remove the zip file after extraction
+
+      - name: Commit and push changes
+        run: |
+          git config --global user.name "Dharsourabh"
+          git config --global user.email "dharsourabh@gmail.com"
+          git add data/
+          git commit -m "Automated update of Cricsheet data"
+          git push --force
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
