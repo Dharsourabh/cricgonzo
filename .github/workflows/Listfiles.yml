@@ -1,7 +1,6 @@
 name: Generate HTML File Listing
 
 on:
-  # Run the workflow on any push to the main branch
   push:
     branches:
       - main
@@ -52,12 +51,22 @@ with open(output_file, 'w') as f:
           # Run the Python script to generate the index.html file
           python generate_index.py
 
+      - name: Verify index.html creation
+        run: |
+          if [ -f "index.html" ]; then
+            echo "index.html successfully created."
+            cat index.html  # Optional: Output the HTML content for debugging
+          else
+            echo "index.html was not created."
+            exit 1  # Exit with an error if index.html does not exist
+          fi
+
       - name: Commit and push changes
+        if: success()  # Only attempt to commit if previous steps succeeded
         run: |
           git config --global user.name "Dharsourabh"
           git config --global user.email "dharsourabh@gmail.com"
           
-          # Add and commit the index.html file if it has changed
           git add index.html
           if git diff --cached --quiet; then
             echo "No changes to commit."
