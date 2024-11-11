@@ -1,0 +1,60 @@
+name: Generate HTML File Listing
+
+on:
+  # Run the workflow twice a day
+  schedule:
+    - cron: '0 0,12 * * *'  # Runs at midnight and noon UTC daily
+
+  # Allow manual trigger
+  workflow_dispatch:
+
+jobs:
+  generate-html:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+
+      - name: Generate HTML file listing
+        run: |
+          # Define the data directory and output file
+          data_directory="data"
+          output_file="index.html"
+
+          # Start building the HTML content
+          echo '<html><head><title>File Listing</title></head><body>' > $output_file
+          echo '<h1>File Listing</h1><ul>' >> $output_file
+
+          # Loop through each file in the directory
+          for file in $(find $data_directory -type f); do
+              file_url="https://dharsourabh.github.io/cricgonzo/$file"
+              echo "<li><a href=\"$file_url\">$(basename $file)</a></li>" >> $output_file
+          done
+
+          echo '</ul></body></html>' >> $output_file
+          
+      - name: Commit and push changes
+        run: |
+          git config --global user.name "Dharsourabh"
+          git config --global user.email "dharsourabh@gmail.com"
+
+          # Check if there are any changes in index.html
+          git add index.html
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Automated update of file listing"
+            git push
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
