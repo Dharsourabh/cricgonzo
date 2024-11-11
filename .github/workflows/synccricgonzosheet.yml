@@ -18,47 +18,56 @@ jobs:
 
       - name: Download Cricsheet data
         run: |
-          # Create a temporary directory for new data
+          # Create temporary directory for the downloaded data
           mkdir -p new_data
           cd new_data
-          curl -L -O https://cricsheet.org/downloads/all_csv2.zip  # Update URL if needed
+          curl -L -O https://cricsheet.org/downloads/all_csv2.zip  # Use the correct URL for the data type you want
           unzip -o all_csv2.zip
           rm all_csv2.zip
           cd ..
 
-      - name: Compare with existing data and update if necessary
-        id: compare-outcome
+      - name: Separate and merge files
         run: |
-          mkdir -p data  # Ensure data directory exists
-          
-          # Check for new or changed files and copy them over
-          CHANGES=false
-          for file in new_data/*; do
-            if ! cmp -s "$file" "data/$(basename "$file")"; then
-              cp "$file" "data/"
-              echo "Updated $(basename "$file")"
-              CHANGES=true
+          # Ensure data directory exists
+          mkdir -p data
+
+          # Initialize merged files
+          echo "Initializing merged files"
+          echo "Match Details File" > data/merged_match_details.csv
+          echo "Ball by Ball Data" > data/merged_ball_by_ball.csv
+
+          # Loop through each downloaded file and merge accordingly
+          for file in new_data/*.csv; do
+            filename=$(basename "$file")
+            if [[ "$filename" == *"info"* ]]; then
+              echo "Merging $filename as match details"
+              tail -n +2 "$file" >> data/merged_match_details.csv
+            else
+              echo "Merging $filename as ball-by-ball data"
+              tail -n +2 "$file" >> data/merged_ball_by_ball.csv
             fi
           done
 
-          # Check if any changes were detected
-          if [ "$CHANGES" = false ]; then
-            echo "No new or updated files found."
-            echo "changed=false" >> $GITHUB_ENV
-            exit 0
+      - name: Check for changes
+        run: |
+          # Check if the merged files differ from the previous version
+          if ! git diff --quiet data/merged_match_details.csv || ! git diff --quiet data/merged_ball_by_ball.csv; then
+            echo "Changes detected in merged files."
+            echo "changes=true" >> $GITHUB_ENV
           else
-            echo "Changes detected. Preparing to commit."
-            echo "changed=true" >> $GITHUB_ENV
+            echo "No changes detected."
+            echo "changes=false" >> $GITHUB_ENV
+            exit 0
           fi
 
       - name: Commit and push changes
-        if: env.changed == 'true'
+        if: env.changes == 'true'
         run: |
           git config --global user.name "Dharsourabh"
           git config --global user.email "dharsourabh@gmail.com"
           
-          git add data/
-          git commit -m "Automated update of Cricsheet data with new or updated files"
+          git add data/merged_match_details.csv data/merged_ball_by_ball.csv
+          git commit -m "Automated update of merged Cricsheet data"
           git push --force
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
