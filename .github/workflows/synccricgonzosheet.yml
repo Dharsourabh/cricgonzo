@@ -67,7 +67,7 @@ jobs:
           git config --global user.email "dharsourabh@gmail.com"
           
           git add data/merged_match_details.csv data/merged_ball_by_ball.csv
-          git commit -m "Automated update of merged Cricsheet data"
+          git commit -m "Automated update of merged Cricsheet 2 files data"
           git push --force
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
