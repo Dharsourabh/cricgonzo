@@ -2,8 +2,7 @@ name: Sync Cricsheet Data
 
 on:
   schedule:
-    - cron: '0 */6 * * *'  # Runs every 6 hours
-
+    - cron: '0 */6 * * *'
   push:
     branches:
       - main
@@ -11,46 +10,45 @@ on:
 jobs:
   update-data:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout the repository
         uses: actions/checkout@v2
 
       - name: Download Cricsheet data
         run: |
-          # Create temporary directory for the downloaded data
           mkdir -p new_data
           cd new_data
-          curl -L -O https://cricsheet.org/downloads/all_csv2.zip  # Use the correct URL for the data type you want
+          curl -L -O https://cricsheet.org/downloads/all_csv2.zip
           unzip -o all_csv2.zip
           rm all_csv2.zip
           cd ..
 
+      - name: Verify download
+        run: ls -l new_data
+
       - name: Separate and merge files
         run: |
-          # Ensure data directory exists
           mkdir -p data
-
-          # Initialize merged files
-          echo "Initializing merged files"
           echo "Match Details File" > data/merged_match_details.csv
           echo "Ball by Ball Data" > data/merged_ball_by_ball.csv
 
-          # Loop through each downloaded file and merge accordingly
           for file in new_data/*.csv; do
             filename=$(basename "$file")
             if [[ "$filename" == *"info"* ]]; then
               echo "Merging $filename as match details"
-              tail -n +2 "$file" >> data/merged_match_details.csv
+              tail -n +2 "$file" >> data/merged_match_details.csv || echo "Failed to merge $filename"
             else
               echo "Merging $filename as ball-by-ball data"
-              tail -n +2 "$file" >> data/merged_ball_by_ball.csv
+              tail -n +2 "$file" >> data/merged_ball_by_ball.csv || echo "Failed to merge $filename"
             fi
           done
 
+      - name: Verify data directory contents
+        run: ls -l data
+
       - name: Check for changes
         run: |
-          # Check if the merged files differ from the previous version
+          git diff --stat data/merged_match_details.csv data/merged_ball_by_ball.csv
           if ! git diff --quiet data/merged_match_details.csv || ! git diff --quiet data/merged_ball_by_ball.csv; then
             echo "Changes detected in merged files."
             echo "changes=true" >> $GITHUB_ENV
@@ -60,12 +58,14 @@ jobs:
             exit 0
           fi
 
+      - name: Verify git status
+        run: git status
+
       - name: Commit and push changes
         if: env.changes == 'true'
         run: |
           git config --global user.name "Dharsourabh"
           git config --global user.email "dharsourabh@gmail.com"
-          
           git add data/merged_match_details.csv data/merged_ball_by_ball.csv
           git commit -m "Automated update of merged Cricsheet 2 files data"
           git push --force
