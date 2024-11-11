@@ -1,14 +1,12 @@
 name: Sync Cricsheet Data
 
 on:
-  # Run the workflow every 6 hours
   schedule:
-    - cron: '0 */6 * * *'  # Runs at midnight, 6 AM, noon, and 6 PM (UTC)
+    - cron: '0 */6 * * *'  # Runs every 6 hours
 
-  # Run the workflow on every push to the main branch (or whatever branch you specify)
   push:
     branches:
-      - main  # Update to your branch name if different
+      - main
 
 jobs:
   update-data:
@@ -20,39 +18,47 @@ jobs:
 
       - name: Download Cricsheet data
         run: |
-          # Define the data folder and the zip file URL
-          DATA_DIR="data"
-          ZIP_URL="https://cricsheet.org/downloads/all_csv2.zip"  # Update URL as needed
-          ZIP_FILE="all_csv2.zip"
+          # Create a temporary directory for new data
+          mkdir -p new_data
+          cd new_data
+          curl -L -O https://cricsheet.org/downloads/all_csv2.zip  # Update URL if needed
+          unzip -o all_csv2.zip
+          rm all_csv2.zip
+          cd ..
 
-          # Create the data folder if not exists
-          mkdir -p $DATA_DIR
-
-          # Download the zip file to a temporary location
-          curl -L -o $ZIP_FILE $ZIP_URL
-
-          # Check if the zip file is different from the existing one
-          if [ -f "$DATA_DIR/$ZIP_FILE" ]; then
-            # If the zip file exists, compare it with the new one
-            if cmp -s "$ZIP_FILE" "$DATA_DIR/$ZIP_FILE"; then
-              echo "No changes in the zip file. Exiting."
-              exit 0  # Exit if no changes are found
-            else
-              echo "New version of zip file detected."
-              rm -rf $DATA_DIR/*  # Clear old data
+      - name: Compare with existing data and update if necessary
+        id: compare-outcome
+        run: |
+          mkdir -p data  # Ensure data directory exists
+          
+          # Check for new or changed files and copy them over
+          CHANGES=false
+          for file in new_data/*; do
+            if ! cmp -s "$file" "data/$(basename "$file")"; then
+              cp "$file" "data/"
+              echo "Updated $(basename "$file")"
+              CHANGES=true
             fi
+          done
+
+          # Check if any changes were detected
+          if [ "$CHANGES" = false ]; then
+            echo "No new or updated files found."
+            echo "changed=false" >> $GITHUB_ENV
+            exit 0
+          else
+            echo "Changes detected. Preparing to commit."
+            echo "changed=true" >> $GITHUB_ENV
           fi
 
-          # Unzip the new data into the data folder
-          unzip -o $ZIP_FILE -d $DATA_DIR
-          rm $ZIP_FILE  # Remove the zip file after extraction
-
       - name: Commit and push changes
+        if: env.changed == 'true'
         run: |
-          git config --global user.name "Dharsourabh"
-          git config --global user.email "dharsourabh@gmail.com"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
           git add data/
-          git commit -m "Automated update of Cricsheet data"
+          git commit -m "Automated update of Cricsheet data with new or updated files"
           git push --force
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
